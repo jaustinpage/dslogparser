@@ -11,14 +11,12 @@ from __future__ import print_function
 # D-P did not reverse the PDP values as was indicated in the CD post
 
 import sys
-import os
-import os.path
 import struct
-import csv
-import bitstring
 import re
 import datetime
 import math
+
+import bitstring
 
 # Python 2 CSV writer wants binary output, but Py3 want regular
 _USE_BINARY_OUTPUT = sys.version_info[0] == 2
@@ -200,7 +198,7 @@ class DSLogParser():
 
 
 class DSEventParser():
-    def __init__(self, input_file):
+    def __init__(self, input_file, match_info=True):
         self.strm = open(input_file, 'rb')
 
         self.read_header()
@@ -239,106 +237,13 @@ class DSEventParser():
 
         return t, msg
 
-
-def find_match_info(filename):
-    rdr = DSEventParser(filename)
-    for t, msg in rdr.read_records():
-        m = re.match(r'FMS Connected:\s+(?P<info>.*)\s*$', msg)
-        if m:
-            rdr.close()
-            return m.group('info')
-    rdr.close()
-    return None
-
-
-def find_event_file(filename):
-    evtname = os.path.splitext(filename)[0] + '.dsevents'
-    if os.path.exists(evtname):
-        return evtname
-    return None
-
-
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description='DSLog to CSV file')
-    parser.add_argument('--one-output-per-file', action='store_true', help='Output one CSV per DSLog file')
-    parser.add_argument('--output', '-o', help='Output filename (stdout otherwise)')
-    parser.add_argument('--event', action='store_true', help='Input files are EVENT files')
-    parser.add_argument('--add-match-info', action='store_true', help='Look for EVENT files matching DSLOG files and pull info')
-    parser.add_argument('--matches-only', action='store_true', help='Ignore files which have no match info. Imples add-match-info')
-    parser.add_argument('files', nargs='+', help='Input files')
-
-    args = parser.parse_args()
-
-    if args.matches_only:
-        args.add_match_info = True
-
-    if sys.platform == "win32":
-        if _USE_BINARY_OUTPUT:
-            # csv.writer requires binary output file
-            import msvcrt
-            msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
-
-        # do glob expanding on Windows. Linux/Mac does this automatically.
-        import glob
-        newfiles = []
-        for a in args.files:
-            newfiles.extend(glob.glob(a))
-        args.files = newfiles
-
-    if args.event:
-        dsparser = DSEventParser(args.files[0])
-        for t, rec in dsparser.read_records():
-            print(t, rec)
-
-    else:
-        col = ['inputfile', ]
-        if args.add_match_info:
-            col.append('match_info')
-        col.extend(DSLogParser.OUTPUT_COLUMNS)
-
-        if not args.one_output_per_file:
-            if args.output:
-                outstrm = open(args.output, 'wb' if _USE_BINARY_OUTPUT else 'w')
-            else:
-                outstrm = sys.stdout
-            outcsv = csv.DictWriter(outstrm, fieldnames=col, extrasaction='ignore')
-            outcsv.writeheader()
-        else:
-            outstrm = None
-            outcsv = None
-
-        for fn in args.files:
-            match_info = None
-            if args.add_match_info:
-                evtfn = find_event_file(fn)
-                if evtfn:
-                    match_info = find_match_info(evtfn)
-
-            if args.matches_only and not match_info:
-                continue
-
-            if args.one_output_per_file:
-                if outstrm:
-                    outstrm.close()
-                outname, _ = os.path.splitext(os.path.basename(fn))
-                outname += '.csv'
-                outstrm = open(outname, 'wb' if _USE_BINARY_OUTPUT else 'w')
-                outcsv = csv.DictWriter(outstrm, fieldnames=col, extrasaction='ignore')
-                outcsv.writeheader()
-
-            dsparser = DSLogParser(fn)
-            for rec in dsparser.read_records():
-                rec['inputfile'] = fn
-                rec['match_info'] = match_info
-
-                # unpack the PDP currents to go into columns more easily
-                for i in range(16):
-                    rec['pdp_{}'.format(i)] = rec['pdp_currents'][i]
-
-                outcsv.writerow(rec)
-
-            dsparser.close()
-
-        if args.output or args.one_output_per_file:
-            outstrm.close()
+    def match_info(self):
+        stream_location = self.strm.tell()
+        info = None
+        fms_connected_re = re.compile(r'FMS Connected:\s+(?P<info>.*)\s*$')
+        for t, msg in self.read_records():
+            m = fms_connected_re.match(msg)
+            if m:
+                info = m.group('info')
+        self.strm.seek(stream_location)
+        return info
