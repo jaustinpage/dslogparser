@@ -200,6 +200,8 @@ class DSLogParser():
 class DSEventParser():
     def __init__(self, input_file, match_info=True):
         self.strm = open(input_file, 'rb')
+        self.version = None
+        self.start_time = None
 
         self.read_header()
         return
@@ -223,7 +225,7 @@ class DSEventParser():
         self.version = struct.unpack('>i', self.strm.read(4))[0]
         if self.version != 3:
             raise Exception("Unknown file version number {}".format(self.version))
-        read_timestamp(self.strm)  # file starttime
+        self.start_time = read_timestamp(self.strm)  # file starttime
         return
 
     def read_record_v3(self):
@@ -237,13 +239,18 @@ class DSEventParser():
 
         return t, msg
 
+    @property
     def match_info(self):
-        stream_location = self.strm.tell()
-        info = None
-        fms_connected_re = re.compile(r'FMS Connected:\s+(?P<info>.*)\s*$')
-        for t, msg in self.read_records():
-            m = fms_connected_re.match(msg)
-            if m:
-                info = m.group('info')
-        self.strm.seek(stream_location)
-        return info
+        try:
+            return self._match_info
+        except AttributeError:
+            stream_location = self.strm.tell()
+            info = None
+            fms_connected_re = re.compile(r'FMS Connected:\s+(?P<info>.*)\s*$')
+            for t, msg in self.read_records():
+                m = fms_connected_re.match(msg)
+                if m:
+                    info = m.group('info')
+            self.strm.seek(stream_location)
+            self._match_info = info
+        return self._match_info
