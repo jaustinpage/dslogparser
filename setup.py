@@ -1,13 +1,13 @@
 from setuptools import setup
 
-setup(name='dslog',
+setup(name='dslogparser',
       version='0.0.1',
       description='FRC Driver Station logs parser',
-      url='http://github.com/ligerbots/dslog',
+      url='http://github.com/ligerbots/dslogparser',
       author='Paul Rensing',
       author_email='',
       license='',
-      packages=['dslog'],
+      packages=['dslogparser'],
       install_requires=[
           'bitstring',
       ],
