@@ -1,11 +1,11 @@
 # dslog
 Python parser for FRC DSLog files.
 
-install dslog
+install dslogparser
 ```shell
-pip install dslog
+pip install dslogparser
 # or
-pip install git+https://github.com/jaustinpage/dslog
+pip install git+https://github.com/jaustinpage/dslogparser
 ```
 
 
@@ -13,11 +13,11 @@ Then, in python:
 
 ```python
 
-events = dslog.DSEventParser('/path/to/my/2018_07_27_08_25_26 Fri.dsevents')
+events = dslogparser.DSEventParser('/path/to/my/2018_07_27_08_25_26 Fri.dsevents')
 for t, rec in events.read_records():
     print(t, rec)
 
-logs = dslog.DSLogParser('/path/to/my/2018_07_27_08_25_26 Fri.dslog')
+logs = dslogparser.DSLogParser('/path/to/my/2018_07_27_08_25_26 Fri.dslog')
 for rec in logs.read_records():
     print(rec)
 
