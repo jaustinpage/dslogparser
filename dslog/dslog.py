@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 # Note: should work correctly with either Python 2 or 3
 
@@ -235,7 +236,10 @@ class DSEventParser():
 
         msg_len = struct.unpack('>i', self.strm.read(4))[0]
         msg = struct.unpack('%ds' % msg_len, self.strm.read(msg_len))[0]
-        msg = msg.decode('ascii')
+        try:
+            msg = msg.decode('ascii', "backslashreplace")
+        except UnicodeDecodeError:
+            print(msg)
 
         return t, msg
 
