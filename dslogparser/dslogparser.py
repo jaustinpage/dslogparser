@@ -11,17 +11,19 @@ from __future__ import print_function
 # D-P has packet_loss as a *signed* integer, which makes no sense. Unsigned looks sensible.
 # D-P did not reverse the PDP values as was indicated in the CD post
 
-import sys
-import struct
-import re
 import datetime
 import math
+import re
+import struct
+import sys
 
 import bitstring
+
 
 # Python 2 CSV writer wants binary output, but Py3 want regular
 _USE_BINARY_OUTPUT = sys.version_info[0] == 2
 MAX_INT64 = 2**63 - 1
+DSLOG_TIMESTEP = 0.020
 
 
 def read_timestamp(strm):
@@ -40,24 +42,10 @@ def read_timestamp(strm):
 
 
 class DSLogParser():
-    OUTPUT_COLUMNS = [
-        'time', 'round_trip_time', 'packet_loss', 'voltage', 'rio_cpu',
-        'robot_disabled', 'robot_auto', 'robot_tele',
-        'ds_disabled', 'ds_auto', 'ds_tele',
-        'watchdog', 'brownout',
-        'can_usage', 'wifi_db', 'bandwidth',
-        'pdp_id',
-        'pdp_0', 'pdp_1', 'pdp_2', 'pdp_3', 'pdp_4', 'pdp_5', 'pdp_6', 'pdp_7',
-        'pdp_8', 'pdp_9', 'pdp_10', 'pdp_11', 'pdp_12', 'pdp_13', 'pdp_14', 'pdp_15',
-        'pdp_total_current',
-        # don't output these. They are not correct
-        # 'pdp_resistance', 'pdp_voltage', 'pdp_temp'
-    ]
-
     def __init__(self, input_file):
         self.strm = open(input_file, 'rb')
 
-        self.record_time_offset = datetime.timedelta(seconds=0.020)
+        self.record_time_offset = datetime.timedelta(seconds=DSLOG_TIMESTEP)
         self.curr_time = None
 
         self.read_header()
@@ -93,8 +81,7 @@ class DSLogParser():
         pdp_bytes = self.strm.read(25)
         if not pdp_bytes or len(pdp_bytes) < 25:
             # should not happen!!
-            print('ERROR: no data for PDP. Unexpected end of file. Quitting', file=sys.stderr)
-            return None
+            raise EOFError("No data for PDP. Unexpected end of file.")
 
         res = {'time': self.curr_time}
         res.update(self.parse_data_v3(data_bytes))
@@ -138,7 +125,6 @@ class DSLogParser():
     def parse_data_v3(self, data_bytes):
         raw_values = struct.unpack('>BBHBcBBH', data_bytes)
         status_bits = self.unpack_bits(raw_values[4])
-        # print('bits', self.record_num, raw_values[4], int.from_bytes(raw_values[4], byteorder='big'), status_bits)
 
         res = {
             'round_trip_time': self.shifted_float(raw_values[0], 1),
@@ -236,12 +222,9 @@ class DSEventParser():
 
         msg_len = struct.unpack('>i', self.strm.read(4))[0]
         msg = struct.unpack('%ds' % msg_len, self.strm.read(msg_len))[0]
-        try:
-            msg = msg.decode('ascii', "backslashreplace")
-        except UnicodeDecodeError:
-            print(msg)
+        msg = msg.decode('ascii', "backslashreplace")
 
-        return t, msg
+        return {'time':t, 'message':msg}
 
     @property
     def match_info(self):
@@ -249,12 +232,15 @@ class DSEventParser():
             return self._match_info
         except AttributeError:
             stream_location = self.strm.tell()
-            info = None
-            fms_connected_re = re.compile(r'FMS Connected:\s+(?P<info>.*)\s*$')
+            info = (None, None)
+            fms_connected_re = re.compile(r'(FMS Connected: *)(?P<match>.*)(, )(Field Time: )(?P<time>[0-9/ :]*)')
             for t, msg in self.read_records():
                 m = fms_connected_re.match(msg)
                 if m:
-                    info = m.group('info')
+                    match_string = m.group('match')
+                    field_time_string = m.group('time')
+                    field_time = datetime.datetime.strptime(field_time_string, '%y/%m/%d %H:%M:%S')
+                    info = (field_time, match_string)
             self.strm.seek(stream_location)
             self._match_info = info
         return self._match_info
