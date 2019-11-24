@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-# Note: should work correctly with either Python 2 or 3
-
-from __future__ import print_function
-
 # Parse the FRC drive station logs which are packed binary data
 
 # Notes on comparison to DSLog-Parse:
