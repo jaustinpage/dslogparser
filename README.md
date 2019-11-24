@@ -1,4 +1,4 @@
-# dslog
+# dslogparser
 Python parser for FRC DSLog files.
 
 install dslogparser
